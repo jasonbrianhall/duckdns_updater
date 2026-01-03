@@ -56,6 +56,7 @@ int main() {
     std::ifstream cfg("/etc/duckdns.conf");
     if (!cfg) {
         syslog(LOG_ERR, "Could not open /etc/duckdns.conf");
+        printf("Could not open /etc/duckdns.conf\n");
         return 1;
     }
 
@@ -71,6 +72,12 @@ int main() {
         else if (line.rfind("ipv4_endpoint=", 0) == 0) ipv4_endpoint = line.substr(14);
     }
 
+    if (interval<60) {
+        syslog(LOG_ERR, "Interval is less then 60; setting to 60");
+        printf("Interval is less then 60; setting to 60\n");
+        interval=60;
+    }    
+
     if (domain.empty() || token.empty() || ipv6_endpoint.empty()) {
         syslog(LOG_ERR, "Missing required config values");
         return 1;
@@ -83,8 +90,8 @@ int main() {
         std::string local_ipv6 = http_get(ipv6_endpoint);
         if (local_ipv6.empty()) {
             syslog(LOG_ERR, "Failed to fetch IPv6 from endpoint");
+            printf("Failed to fetch IPv6 from endpoint\n");
             std::this_thread::sleep_for(std::chrono::seconds(interval));
-            continue;
         }
 
         std::string dns_ipv6 = resolve_record(fqdn, AF_INET6);
@@ -109,8 +116,10 @@ int main() {
         if (ipv6_changed || ipv4_changed) {
             std::string url =
                 "https://www.duckdns.org/update?domains=" + domain +
-                "&token=" + token +
-                "&ipv6=" + local_ipv6;
+                "&token=" + token;
+            if (ipv6_changed) {
+                url += "&ipv6=" + local_ipv6;
+            }
 
             if (ipv4_enabled && !local_ipv4.empty())
                 url += "&ip=" + local_ipv4;
@@ -120,10 +129,17 @@ int main() {
             syslog(LOG_INFO,
                    "DuckDNS update: ipv6_changed=%d ipv4_changed=%d result=%s",
                    ipv6_changed, ipv4_changed, result.c_str());
+            printf("DuckDNS update: ipv6_changed=%d ipv4_changed=%d result=%s",
+                   ipv6_changed, ipv4_changed, result.c_str());
+
         } else {
             syslog(LOG_INFO, "No update needed (IPv6=%s IPv4=%s)",
                    local_ipv6.c_str(),
                    ipv4_enabled ? local_ipv4.c_str() : "disabled");
+            printf("No update needed (IPv6=%s IPv4=%s)",
+                   local_ipv6.c_str(),
+                   ipv4_enabled ? local_ipv4.c_str() : "disabled");
+
         }
 
         std::this_thread::sleep_for(std::chrono::seconds(interval));
