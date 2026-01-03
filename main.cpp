@@ -136,11 +136,11 @@ int main() {
             syslog(LOG_INFO, "No update needed (IPv6=%s IPv4=%s)",
                    local_ipv6.c_str(),
                    ipv4_enabled ? local_ipv4.c_str() : "disabled");
-            printf("No update needed (IPv6=%s IPv4=%s)",
+            printf("No update needed (IPv6=%s IPv4=%s)\n",
                    local_ipv6.c_str(),
                    ipv4_enabled ? local_ipv4.c_str() : "disabled");
-
         }
+        printf("Sleeping for %i\n", interval);   
 
         std::this_thread::sleep_for(std::chrono::seconds(interval));
     }
