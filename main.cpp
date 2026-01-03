@@ -8,9 +8,14 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 
-std::string http_get(const std::string &url) {
+struct HttpResponse {
+    long status_code;
+    std::string body;
+};
+
+HttpResponse http_get(const std::string &url) {
     CURL *curl = curl_easy_init();
-    if (!curl) return "";
+    if (!curl) return {0, ""};
 
     std::string response;
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
@@ -24,8 +29,12 @@ std::string http_get(const std::string &url) {
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
 
     curl_easy_perform(curl);
+    
+    long status_code = 0;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status_code);
+    
     curl_easy_cleanup(curl);
-    return response;
+    return {status_code, response};
 }
 
 std::string resolve_record(const std::string &hostname, int family) {
@@ -87,11 +96,15 @@ int main() {
 
     while (true) {
         // --- IPv6 detection ---
-        std::string local_ipv6 = http_get(ipv6_endpoint);
+        auto ipv6_resp = http_get(ipv6_endpoint);
+        std::string local_ipv6 = ipv6_resp.body;
+        std::cout << "IPv6 - Status: " << ipv6_resp.status_code << ", Body: " << local_ipv6 << std::endl;
+        
         if (local_ipv6.empty()) {
             syslog(LOG_ERR, "Failed to fetch IPv6 from endpoint");
             printf("Failed to fetch IPv6 from endpoint\n");
             std::this_thread::sleep_for(std::chrono::seconds(interval));
+            continue;
         }
 
         std::string dns_ipv6 = resolve_record(fqdn, AF_INET6);
@@ -104,7 +117,10 @@ int main() {
         bool ipv4_changed = false;
 
         if (ipv4_enabled) {
-            local_ipv4 = http_get(ipv4_endpoint);
+            auto ipv4_resp = http_get(ipv4_endpoint);
+            local_ipv4 = ipv4_resp.body;
+            std::cout << "IPv4 - Status: " << ipv4_resp.status_code << ", Body: " << local_ipv4 << std::endl;
+            
             dns_ipv4 = resolve_record(fqdn, AF_INET);
 
             if (!local_ipv4.empty() && dns_ipv4 != local_ipv4) {
@@ -123,14 +139,15 @@ int main() {
 
             if (ipv4_enabled && !local_ipv4.empty())
                 url += "&ip=" + local_ipv4;
-
-            std::string result = http_get(url);
-
+            std::cout << "URL is: " << url << std::endl;
+            auto update_resp = http_get(url);
+            std::cout << "Update - Status: " << update_resp.status_code << ", Body: " << update_resp.body << std::endl;
+            if (update_resp.body == "OK") { std::cout << "Update was successful\n"; }
             syslog(LOG_INFO,
                    "DuckDNS update: ipv6_changed=%d ipv4_changed=%d result=%s",
-                   ipv6_changed, ipv4_changed, result.c_str());
-            printf("DuckDNS update: ipv6_changed=%d ipv4_changed=%d result=%s",
-                   ipv6_changed, ipv4_changed, result.c_str());
+                   ipv6_changed, ipv4_changed, update_resp.body.c_str());
+            printf("DuckDNS update: ipv6_changed=%d ipv4_changed=%d result=%s\n",
+                   ipv6_changed, ipv4_changed, update_resp.body.c_str());
 
         } else {
             syslog(LOG_INFO, "No update needed (IPv6=%s IPv4=%s)",
@@ -148,4 +165,3 @@ int main() {
     closelog();
     return 0;
 }
-
