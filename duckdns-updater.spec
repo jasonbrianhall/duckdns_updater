@@ -1,6 +1,6 @@
 Name:           duckdns-updater
-Version:        1.0.0
-Release:        1%{?dist}
+Version:        %{version}
+Release:        %{release}
 Summary:        DuckDNS IPv4/IPv6 Dynamic DNS Updater
 
 License:        MIT
@@ -64,6 +64,5 @@ rm -rf %{buildroot}
 %{_unitdir}/duckdns.service
 
 %changelog
-* Fri Jan 03 2025 Your Name <your.email@example.com> - 1.0.0-1
-- Initial release
-
+* Fri Jan 03 2025 Your Name <your.email@example.com> - %{version}-%{release}
+- Automated RPM build from git
